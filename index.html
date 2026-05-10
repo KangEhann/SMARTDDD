@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartDDD – Sistem Hitung DDD Antibiotik</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- ========== LOGIN PAGE ========== -->
+<div id="loginPage" class="login-page">
+  <div class="login-bg">
+    <div class="login-blob login-blob-1"></div>
+    <div class="login-blob login-blob-2"></div>
+    <div class="login-blob login-blob-3"></div>
+  </div>
+  <div class="login-card">
+    <div class="login-header">
+      <div class="login-icon">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <rect width="40" height="40" rx="12" fill="#1565C0"/>
+          <path d="M20 8C13.37 8 8 13.37 8 20C8 26.63 13.37 32 20 32C26.63 32 32 26.63 32 20C32 13.37 26.63 8 20 8ZM24 21H21V24C21 24.55 20.55 25 20 25C19.45 25 19 24.55 19 24V21H16C15.45 21 15 20.55 15 20C15 19.45 15.45 19 16 19H19V16C19 15.45 19.45 15 20 15C20.55 15 21 15.45 21 16V19H24C24.55 19 25 19.45 25 20C25 20.55 24.55 21 24 21Z" fill="white"/>
+        </svg>
+      </div>
+      <h1 class="login-title">SmartDDD</h1>
+      <p class="login-subtitle">Sistem Hitung DDD Antibiotik Otomatis</p>
+      <div class="login-badge">RS Tzu Chi Hospital</div>
+    </div>
+    <div class="login-form">
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <div class="input-wrapper">
+          <span class="input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </span>
+          <input type="text" id="loginUsername" class="form-input" placeholder="Masukkan username" autocomplete="username"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="input-wrapper">
+          <span class="input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </span>
+          <input type="password" id="loginPassword" class="form-input" placeholder="Masukkan password" autocomplete="current-password"/>
+          <button type="button" class="toggle-pw" onclick="togglePassword()">
+            <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="loginError" class="login-error hidden">Username atau password salah!</div>
+      <button class="btn-login" onclick="login()">
+        <span>Masuk</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+    <p class="login-footer">© 2026 SmartDDD – Farmasi RS Tzu Chi Hospital</p>
+  </div>
+</div>
+
+<!-- ========== MAIN APP ========== -->
+<div id="mainApp" class="main-app hidden">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <svg width="28" height="28" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="white" fill-opacity="0.2"/><path d="M20 8C13.37 8 8 13.37 8 20C8 26.63 13.37 32 20 32C26.63 32 32 26.63 32 20C32 13.37 26.63 8 20 8ZM24 21H21V24C21 24.55 20.55 25 20 25C19.45 25 19 24.55 19 24V21H16C15.45 21 15 20.55 15 20C15 19.45 15.45 19 16 19H19V16C19 15.45 19.45 15 20 15C20.55 15 21 15.45 21 16V19H24C24.55 19 25 19.45 25 20C25 20.55 24.55 21 24 21Z" fill="white"/></svg>
+        <div>
+          <div class="sidebar-title">SmartDDD</div>
+          <div class="sidebar-version">v2026.1</div>
+        </div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Menu Utama</div>
+      <a href="#" class="nav-item active" data-section="dashboard" onclick="navigate('dashboard'); return false;">
+        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-section="masterdata" onclick="navigate('masterdata'); return false;">
+        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>
+        <span>Master Data</span>
+      </a>
+      <a href="#" class="nav-item" data-section="kalkulator" onclick="navigate('kalkulator'); return false;">
+        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg></span>
+        <span>Kalkulator DDD</span>
+      </a>
+      <div class="nav-section-label">Laporan</div>
+      <a href="#" class="nav-item" data-section="statistik" onclick="navigate('statistik'); return false;">
+        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        <span>Statistik</span>
+      </a>
+      <a href="#" class="nav-item" data-section="export" onclick="navigate('export'); return false;">
+        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+        <span>Export Laporan</span>
+      </a>
+      <div class="nav-section-label" id="navAkunLabel">Pengaturan</div>
+      <a href="#" id="navAkun" class="nav-item" data-section="akun" onclick="navigate('akun'); return false;">
+        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Manajemen Akun</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user" onclick="openGantiPassword()" title="Ganti Password" style="cursor:pointer">
+        <div class="user-avatar">FF</div>
+        <div class="user-info">
+          <div class="user-name">Fadillah Fazrin</div>
+          <div class="user-role">Farmasi</div>
+        </div>
+      </div>
+      <div class="sidebar-footer-actions">
+        <button class="btn-icon-sidebar" onclick="openGantiPassword()" title="Ganti Password">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+        <button class="btn-logout" onclick="logout()" title="Logout">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content" id="mainContent">
+    <!-- NAVBAR -->
+    <header class="navbar">
+      <div class="navbar-left">
+        <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="page-breadcrumb">
+          <span id="pageTitle">Dashboard</span>
+        </div>
+      </div>
+      <div class="navbar-right">
+        <div class="datetime-display">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span id="datetimeDisplay"></span>
+        </div>
+        <div class="navbar-user">
+          <div class="user-avatar-sm">FF</div>
+          <span>Fadillah Fazrin</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== DASHBOARD SECTION ===== -->
+    <section id="dashboardSection" class="section active-section">
+      <div class="section-header">
+        <h2 class="section-title">Dashboard</h2>
+        <p class="section-desc">Ringkasan penggunaan antibiotik RS Tzu Chi Hospital</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card stat-blue">
+          <div class="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-value" id="statTotalAntibiotik">0</div>
+            <div class="stat-label">Total Antibiotik</div>
+          </div>
+          <div class="stat-trend">Master Data</div>
+        </div>
+        <div class="stat-card stat-cyan">
+          <div class="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-value" id="statTotalKalkulasi">0</div>
+            <div class="stat-label">Total Perhitungan DDD</div>
+          </div>
+          <div class="stat-trend">Riwayat</div>
+        </div>
+        <div class="stat-card stat-green">
+          <div class="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-value" id="statMostUsed">–</div>
+            <div class="stat-label">Antibiotik Terbanyak</div>
+          </div>
+          <div class="stat-trend">Digunakan</div>
+        </div>
+        <div class="stat-card stat-amber">
+          <div class="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-value" id="statAvgDDD">0.00</div>
+            <div class="stat-label">Rata-rata DDD/100 HD</div>
+          </div>
+          <div class="stat-trend">Per 100 HD</div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Riwayat Perhitungan Terbaru</h3>
+            <button class="btn-text" onclick="navigate('kalkulator')">Lihat Semua →</button>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table" id="dashRecentTable">
+              <thead>
+                <tr>
+                  <th>Antibiotik</th>
+                  <th>Total DDD</th>
+                  <th>DDD/100 HD</th>
+                  <th>Tanggal</th>
+                </tr>
+              </thead>
+              <tbody id="dashRecentBody">
+                <tr><td colspan="4" class="empty-state">Belum ada perhitungan</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Distribusi AWARE</h3>
+          </div>
+          <div class="chart-container-sm">
+            <canvas id="dashPieChart"></canvas>
+          </div>
+          <div class="aware-legend" id="awareLegend"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MASTER DATA SECTION ===== -->
+    <section id="masterdataSection" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Master Data Antibiotik</h2>
+        <p class="section-desc">Kelola data antibiotik dan nilai DDD WHO</p>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" id="searchAntibiotic" placeholder="Cari nama antibiotik..." oninput="filterMasterData()" />
+          </div>
+          <select id="filterGolongan" class="select-filter" onchange="filterMasterData()">
+            <option value="">Semua Golongan</option>
+          </select>
+          <select id="filterAware" class="select-filter" onchange="filterMasterData()">
+            <option value="">Semua AWARE</option>
+            <option value="Access">Access</option>
+            <option value="Watch">Watch</option>
+            <option value="Reserve">Reserve</option>
+            <option value="Anti-jamur">Anti-jamur</option>
+            <option value="Anti-Tuberkulosis">Anti-Tuberkulosis</option>
+            <option value="Anti-Virus">Anti-Virus</option>
+          </select>
+          <select id="filterRute" class="select-filter" onchange="filterMasterData()">
+            <option value="">Semua Rute</option>
+            <option value="Oral">Oral</option>
+            <option value="Parenteral">Parenteral</option>
+            <option value="Rectal">Rectal</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <span class="data-count" id="masterDataCount">0 data</span>
+          <button class="btn-primary" onclick="openModal('add')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tambah Data
+          </button>
+        </div>
+      </div>
+
+      <div class="card no-pad">
+        <div class="table-wrapper">
+          <table class="data-table" id="masterTable">
+            <thead>
+              <tr>
+                <th style="width:40px">No</th>
+                <th>Nama Generik</th>
+                <th>Kode ATC</th>
+                <th>Golongan</th>
+                <th>Rute</th>
+                <th>Satuan</th>
+                <th>DDD WHO</th>
+                <th>AWARE</th>
+                <th style="width:100px">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="masterTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== KALKULATOR SECTION ===== -->
+    <section id="kalkulatorSection" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Kalkulator DDD Otomatis</h2>
+        <p class="section-desc">Hitung Defined Daily Dose (DDD) penggunaan antibiotik</p>
+      </div>
+
+      <div class="calc-layout">
+        <div class="calc-form-panel">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Input Perhitungan</h3>
+            </div>
+            <div class="calc-form">
+              <div class="form-group">
+                <label class="form-label">Nama Antibiotik <span class="required">*</span></label>
+                <select id="calcAntibiotic" class="form-input" onchange="onAntibioticSelect()">
+                  <option value="">-- Pilih Antibiotik --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Rute Pemberian</label>
+                <input type="text" id="calcRute" class="form-input" readonly placeholder="Auto-terisi" />
+              </div>
+              <div class="ddd-info-row" id="dddInfoRow" style="display:none">
+                <div class="ddd-info-item">
+                  <span class="ddd-info-label">Kode ATC</span>
+                  <span class="ddd-info-value" id="infoKodeAtc">–</span>
+                </div>
+                <div class="ddd-info-item">
+                  <span class="ddd-info-label">DDD WHO</span>
+                  <span class="ddd-info-value" id="infoDddWho">–</span>
+                </div>
+                <div class="ddd-info-item">
+                  <span class="ddd-info-label">Golongan</span>
+                  <span class="ddd-info-value" id="infoGolongan">–</span>
+                </div>
+                <div class="ddd-info-item">
+                  <span class="ddd-info-label">AWARE</span>
+                  <span class="ddd-info-value" id="infoAware">–</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Total Gram/MIU Digunakan <span class="required">*</span>
+                  <span class="form-hint" id="satHint">(masukkan dalam gram)</span>
+                </label>
+                <input type="number" id="calcTotalGram" class="form-input" placeholder="cth: 10" min="0" step="0.01" />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Total Pasien <span class="required">*</span></label>
+                  <input type="number" id="calcTotalPasien" class="form-input" placeholder="cth: 50" min="1" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Lama Rawat (Hari) <span class="required">*</span></label>
+                  <input type="number" id="calcLamaRawat" class="form-input" placeholder="cth: 7" min="1" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Catatan</label>
+                <input type="text" id="calcCatatan" class="form-input" placeholder="Opsional..." />
+              </div>
+              <button class="btn-primary btn-block" onclick="calculateDDD()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Hitung DDD Sekarang
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="calc-result-panel">
+          <div id="calcResultCard" class="calc-result hidden">
+            <div class="result-header">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span>Hasil Perhitungan</span>
+            </div>
+            <div class="result-antibiotic" id="resultAntibiotic"></div>
+            <div class="result-grid">
+              <div class="result-item">
+                <div class="result-label">Total DDD</div>
+                <div class="result-value" id="resultTotalDDD">–</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">DDD / 100 Hari Pasien</div>
+                <div class="result-value result-highlight" id="resultDDD100HD">–</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Total Patient-Days</div>
+                <div class="result-value" id="resultPatientDays">–</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">DDD WHO (Standar)</div>
+                <div class="result-value" id="resultDDDStd">–</div>
+              </div>
+            </div>
+            <div class="result-formula">
+              <div class="formula-title">Formula:</div>
+              <div class="formula-text" id="resultFormula"></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:0">
+            <div class="card-header">
+              <h3 class="card-title">Riwayat Perhitungan</h3>
+              <button class="btn-danger-sm" onclick="clearHistory()" title="Hapus semua riwayat">Hapus Semua</button>
+            </div>
+            <div class="search-box" style="margin-bottom:12px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" id="searchHistory" placeholder="Cari riwayat..." oninput="renderHistory()" />
+            </div>
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Antibiotik</th>
+                    <th>Total Gram</th>
+                    <th>Total DDD</th>
+                    <th>DDD/100HD</th>
+                    <th>Tanggal</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== STATISTIK SECTION ===== -->
+    <section id="statistikSection" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Statistik Penggunaan</h2>
+        <p class="section-desc">Visualisasi data penggunaan antibiotik berdasarkan riwayat perhitungan</p>
+      </div>
+
+      <div class="stats-summary-grid">
+        <div class="mini-stat">
+          <div class="mini-stat-label">Total Antibiotik</div>
+          <div class="mini-stat-value" id="ss1">0</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label">Total Perhitungan</div>
+          <div class="mini-stat-value" id="ss2">0</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label">Rata-rata DDD/100HD</div>
+          <div class="mini-stat-value" id="ss3">0.00</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label">Max DDD/100HD</div>
+          <div class="mini-stat-value" id="ss4">0.00</div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="card chart-card">
+          <div class="card-header">
+            <h3 class="card-title">Penggunaan Antibiotik (Top 10 DDD)</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="barChart"></canvas>
+          </div>
+        </div>
+        <div class="card chart-card-sm">
+          <div class="card-header">
+            <h3 class="card-title">Distribusi Golongan AWARE</h3>
+          </div>
+          <div class="chart-container-sm">
+            <canvas id="pieChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Tabel Statistik Penggunaan</h3>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Antibiotik</th>
+                <th>Frekuensi Penggunaan</th>
+                <th>Total Gram</th>
+                <th>Total DDD</th>
+                <th>Rata-rata DDD/100HD</th>
+                <th>AWARE</th>
+              </tr>
+            </thead>
+            <tbody id="statTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== EXPORT SECTION ===== -->
+    <section id="exportSection" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Export Laporan</h2>
+        <p class="section-desc">Unduh laporan dalam berbagai format</p>
+      </div>
+
+      <div class="export-grid">
+        <div class="export-card" onclick="printReport()">
+          <div class="export-icon export-icon-blue">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          </div>
+          <h3 class="export-title">Print Laporan</h3>
+          <p class="export-desc">Cetak laporan menggunakan printer</p>
+          <div class="export-btn">Print Sekarang</div>
+        </div>
+
+        <div class="export-card" onclick="exportToExcel()">
+          <div class="export-icon export-icon-green">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <h3 class="export-title">Export Excel</h3>
+          <p class="export-desc">Unduh data dalam format .xlsx</p>
+          <div class="export-btn">Export Excel</div>
+        </div>
+
+        <div class="export-card" onclick="exportToPDF()">
+          <div class="export-icon export-icon-red">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 11v6M14 11v6M8 11h8"/></svg>
+          </div>
+          <h3 class="export-title">Export PDF</h3>
+          <p class="export-desc">Simpan laporan sebagai PDF</p>
+          <div class="export-btn">Export PDF</div>
+        </div>
+      </div>
+
+      <div class="card" id="printPreview">
+        <div class="print-header">
+          <div class="print-logo-area">
+            <div class="print-icon">💊</div>
+            <div>
+              <div class="print-hospital">RS Tzu Chi Hospital</div>
+              <div class="print-dept">Instalasi Farmasi – Unit DDD</div>
+            </div>
+          </div>
+          <div class="print-date">
+            <div>Tanggal Cetak: <span id="printDate"></span></div>
+            <div>Dicetak oleh: <span id="printUserName">–</span></div>
+          </div>
+        </div>
+        <h3 style="margin:16px 0 8px;font-size:15px;color:#1565C0">Laporan Master Data Antibiotik</h3>
+        <div class="table-wrapper">
+          <table class="data-table" id="printMasterTable">
+            <thead>
+              <tr><th>No</th><th>Nama Generik</th><th>Kode ATC</th><th>Golongan</th><th>Rute</th><th>Satuan</th><th>DDD WHO</th><th>AWARE</th></tr>
+            </thead>
+            <tbody id="printMasterBody"></tbody>
+          </table>
+        </div>
+        <h3 style="margin:24px 0 8px;font-size:15px;color:#1565C0">Laporan Riwayat Perhitungan DDD</h3>
+        <div class="table-wrapper">
+          <table class="data-table" id="printHistoryTable">
+            <thead>
+              <tr><th>No</th><th>Antibiotik</th><th>Total Gram</th><th>Total DDD</th><th>DDD/100HD</th><th>Pasien</th><th>Lama Rawat</th><th>Tanggal</th></tr>
+            </thead>
+            <tbody id="printHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MANAJEMEN AKUN SECTION ===== -->
+    <section id="akunSection" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Manajemen Akun</h2>
+        <p class="section-desc">Kelola akun pengguna yang dapat mengakses SmartDDD</p>
+      </div>
+
+      <div class="card">
+        <div class="card-toolbar">
+          <div class="card-toolbar-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Daftar Akun Pengguna
+          </div>
+          <button class="btn-primary" onclick="openAddAkun()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tambah Akun
+          </button>
+        </div>
+
+        <div class="akun-info-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Hanya akun dengan role <strong>Admin</strong> yang dapat mengelola akun pengguna lain.
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr><th>Pengguna</th><th>Jabatan</th><th>Role</th><th>Aksi</th></tr>
+            </thead>
+            <tbody id="akunTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ===== MODAL MANAJEMEN AKUN ===== -->
+<div id="akunModalOverlay" class="modal-overlay hidden" onclick="if(event.target===this)closeAkunModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="akunModalTitle" class="modal-title">Tambah Akun</h3>
+      <button class="modal-close" onclick="closeAkunModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="akunEditId" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nama Lengkap <span class="required">*</span></label>
+          <input type="text" id="akunNama" class="form-input" placeholder="cth: Dr. Budi Santoso" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Jabatan <span class="required">*</span></label>
+          <input type="text" id="akunJabatan" class="form-input" placeholder="cth: Apoteker" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Username <span class="required">*</span></label>
+          <input type="text" id="akunUsername" class="form-input" placeholder="cth: budi.santoso" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Role <span class="required">*</span></label>
+          <select id="akunRole" class="form-input">
+            <option value="admin">Admin (akses penuh)</option>
+            <option value="user">User (akses terbatas)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password <span class="required">*</span></label>
+        <div class="input-wrapper">
+          <span class="input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </span>
+          <input type="password" id="akunPassword" class="form-input" placeholder="Masukkan password" autocomplete="new-password"/>
+        </div>
+        <small id="akunPasswordNote" style="color:var(--text-3);font-size:12px;margin-top:4px;display:block"></small>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeAkunModal()">Batal</button>
+      <button class="btn-primary" onclick="saveAkun()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL ADD/EDIT ===== -->
+<div id="modalOverlay" class="modal-overlay hidden" onclick="closeModalOnOverlay(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle" class="modal-title">Tambah Data Antibiotik</h3>
+      <button class="modal-close" onclick="closeModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nama Generik <span class="required">*</span></label>
+          <input type="text" id="mNamaGenerik" class="form-input" placeholder="cth: Amoxicillin" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Kode ATC <span class="required">*</span></label>
+          <input type="text" id="mKodeAtc" class="form-input" placeholder="cth: J01CA04" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Golongan <span class="required">*</span></label>
+          <input type="text" id="mGolongan" class="form-input" placeholder="cth: Penisilin" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rute Pemberian <span class="required">*</span></label>
+          <select id="mRute" class="form-input">
+            <option value="Oral">Oral</option>
+            <option value="Parenteral">Parenteral</option>
+            <option value="Rectal">Rectal</option>
+            <option value="Topikal">Topikal</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Satuan DDD <span class="required">*</span></label>
+          <select id="mSatuan" class="form-input">
+            <option value="g">gram (g)</option>
+            <option value="mg">miligram (mg)</option>
+            <option value="IU">International Unit (IU)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nilai DDD WHO <span class="required">*</span></label>
+          <input type="number" id="mDddWho" class="form-input" placeholder="cth: 1.5" min="0" step="0.01" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Klasifikasi AWARE</label>
+        <select id="mAware" class="form-input">
+          <option value="Access">Access</option>
+          <option value="Watch">Watch</option>
+          <option value="Reserve">Reserve</option>
+          <option value="Anti-jamur">Anti-jamur</option>
+          <option value="Anti-Tuberkulosis">Anti-Tuberkulosis</option>
+          <option value="Anti-Virus">Anti-Virus</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Batal</button>
+      <button class="btn-primary" onclick="saveAntibiotic()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL GANTI PASSWORD ===== -->
+<div id="gantiPwOverlay" class="modal-overlay hidden" onclick="if(event.target===this)closeGantiPassword()">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <h3 class="modal-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px;margin-right:6px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Ganti Password
+      </h3>
+      <button class="modal-close" onclick="closeGantiPassword()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="ganti-pw-user-info">
+        <div class="user-avatar" id="gantiPwAvatar" style="width:40px;height:40px;font-size:15px">FF</div>
+        <div>
+          <div id="gantiPwNama" style="font-weight:600;font-size:14px">Fadillah Fazrin</div>
+          <div id="gantiPwUsername" style="font-size:12px;color:var(--text-3)">fadillah fazrin</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password Lama <span class="required">*</span></label>
+        <div class="input-wrapper">
+          <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <input type="password" id="pwLama" class="form-input" placeholder="Masukkan password saat ini" autocomplete="current-password"/>
+          <button type="button" class="toggle-pw" onclick="togglePwField('pwLama','eyeLama')">
+            <svg id="eyeLama" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password Baru <span class="required">*</span></label>
+        <div class="input-wrapper">
+          <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <input type="password" id="pwBaru" class="form-input" placeholder="Minimal 6 karakter" autocomplete="new-password" oninput="checkPwStrength()"/>
+          <button type="button" class="toggle-pw" onclick="togglePwField('pwBaru','eyeBaru')">
+            <svg id="eyeBaru" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div class="pw-strength-bar"><div id="pwStrengthFill"></div></div>
+        <small id="pwStrengthLabel" style="font-size:11px;color:var(--text-3)"></small>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Konfirmasi Password Baru <span class="required">*</span></label>
+        <div class="input-wrapper">
+          <span class="input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <input type="password" id="pwKonfirmasi" class="form-input" placeholder="Ulangi password baru" autocomplete="new-password"/>
+          <button type="button" class="toggle-pw" onclick="togglePwField('pwKonfirmasi','eyeKonfirmasi')">
+            <svg id="eyeKonfirmasi" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="gantiPwError" class="login-error hidden" style="margin-top:4px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeGantiPassword()">Batal</button>
+      <button class="btn-primary" onclick="simpanGantiPassword()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>
+        Simpan Password
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TOAST NOTIFICATION ===== -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- ===== PRINT STYLES ===== -->
+<div id="printArea" class="hidden"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
