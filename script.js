@@ -1,4 +1,4 @@
-/* SCRIPT SMARTDDD - FULLY CONNECTED TO EXPORT & STATISTICS */
+/* SCRIPT SMARTDDD - FULLY CONNECTED (ADMIN, EXPORT, CALC, IMPORT) */
 'use strict';
 
 // 1. DATA MASTER (372 DATA TETAP LENGKAP)
@@ -376,11 +376,12 @@ const INITIAL_ANTIBIOTICS = [
   { id:372, nama_brand:'OAT Anak-KDT Fase Lanjutan', nama_generik:'Rifampicin', kode_atc:'J04AB02', golongan:'Anti-Tuberkulosis', satuan:'vial', ddd_who:0.6, rute:'Oral', aware:'Anti-Tuberkulosis' },
 ];
 
+// KONFIGURASI STORAGE
 const STORAGE_KEYS = {
   auth: 'smartddd_auth_session',
   antibiotics: 'smartddd_antibiotics_data',
   history: 'smartddd_history_v2',
-  users: 'smartddd_users_v1'
+  users: 'smartddd_users_v2'
 };
 
 const STAFF_GROUPS = {
@@ -395,7 +396,9 @@ let currentUser = null;
 let currentCalcType = 'ranap';
 let barChart = null, pieChart = null, dashPieChart = null;
 
-// INIT DATA
+// ==========================================
+// 1. FUNGSI INISIALISASI & AUTH
+// ==========================================
 function loadAllData() {
   const storedAtb = localStorage.getItem(STORAGE_KEYS.antibiotics);
   antibiotics = storedAtb ? JSON.parse(storedAtb) : INITIAL_ANTIBIOTICS;
@@ -407,40 +410,178 @@ function loadAllData() {
   const storedUsers = localStorage.getItem(STORAGE_KEYS.users);
   users = storedUsers ? JSON.parse(storedUsers) : [
     { id: 1, fullname: 'Administrator', username: 'admin', password: 'admin123', role: 'admin' },
-    { id: 2, fullname: 'Fadillah Fazrin', username: 'farmasi', password: '123', role: 'user' }
+    { id: 2, fullname: 'Fadillah Fazrin', username: 'FadillahF', password: '123', role: 'user' }
   ];
+  if (!storedUsers) localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+
   const session = localStorage.getItem(STORAGE_KEYS.auth);
-  if (session) { currentUser = JSON.parse(session); showApp(); }
+  if (session) {
+    currentUser = JSON.parse(session);
+    showApp();
+  }
 }
 
-// ---------------------------------------------------------
-// FUNGSI NAVIGASI & REFRESH SEMUA DATA
-// ---------------------------------------------------------
+function login() {
+  const u = document.getElementById('loginUsername').value;
+  const p = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+
+  const user = users.find(x => x.username === u && x.password === p);
+  if (user) {
+    currentUser = user;
+    localStorage.setItem(STORAGE_KEYS.auth, JSON.stringify(user));
+    errorEl.classList.add('hidden');
+    showApp();
+    showToast(`Selamat datang, ${user.fullname}!`);
+  } else {
+    errorEl.classList.remove('hidden');
+  }
+}
+
+function logout() {
+  localStorage.removeItem(STORAGE_KEYS.auth);
+  location.reload();
+}
+
+function showApp() {
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('hidden');
+  
+  const avatar = currentUser.fullname[0].toUpperCase();
+  document.getElementById('sidebarAvatar').textContent = avatar;
+  document.getElementById('navAvatar').textContent = avatar;
+  document.getElementById('sidebarUserName').textContent = currentUser.fullname;
+  document.getElementById('navUserName').textContent = currentUser.fullname;
+
+  // Sembunyikan/Tampilkan Menu Admin berdasarkan role
+  const adminMenu = document.getElementById('adminMenu');
+  if (currentUser.role === 'admin') {
+    adminMenu.classList.remove('hidden');
+  } else {
+    adminMenu.classList.add('hidden');
+  }
+
+  refreshAllViews();
+  navigate('dashboard');
+}
+
+// ==========================================
+// 2. FUNGSI NAVIGASI & KONEKSI MENU
+// ==========================================
 function navigate(sec) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active-section'));
   document.getElementById(sec + 'Section').classList.add('active-section');
   document.getElementById('pageTitle').textContent = sec.toUpperCase();
 
-  // Setiap kali pindah menu, refresh data agar konek ke Export & Statistik
-  refreshAllViews();
+  // Sidebar active state
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.section === sec);
+  });
 
-  if (sec === 'kalkulator') { populateAntibioticSelect(); renderHistory(); }
+  // Mobile menu close
+  if (window.innerWidth <= 768) {
+    document.getElementById('sidebar').classList.remove('mobile-open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+  }
+
+  // Panggil fungsi render spesifik tiap menu
+  if (sec === 'dashboard') initDashboard();
   if (sec === 'masterdata') renderMasterTable();
+  if (sec === 'kalkulator') { populateAntibioticSelect(); renderHistory(); }
   if (sec === 'statistik') initStatistik();
   if (sec === 'export') initExport();
-  if (sec === 'dashboard') initDashboard();
+  if (sec === 'usermanagement') renderUserTable();
 }
 
 function refreshAllViews() {
-  renderHistory();
   initDashboard();
   initStatistik();
   initExport();
+  renderHistory();
 }
 
-// ---------------------------------------------------------
-// FUNGSI IMPOR EXCEL (DIPERBAIKI AGAR KONEK KE LAPORAN)
-// ---------------------------------------------------------
+// ==========================================
+// 3. MANAJEMEN USER (ADMIN ONLY)
+// ==========================================
+function renderUserTable() {
+  const tbody = document.querySelector('#usermanagementSection tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td><strong>${u.fullname}</strong></td>
+      <td>${u.username}</td>
+      <td><span class="badge ${u.role === 'admin' ? 'badge-reserve' : 'badge-access'}">${u.role.toUpperCase()}</span></td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <button class="btn-icon btn-icon-edit" onclick="openUserModal('edit', ${u.id})">✎</button>
+          ${u.username !== 'admin' ? `<button class="btn-icon btn-icon-del" onclick="deleteUser(${u.id})">×</button>` : ''}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openUserModal(mode, id) {
+  document.getElementById('userModalOverlay').classList.remove('hidden');
+  const title = document.getElementById('userModalTitle');
+  const editIdField = document.getElementById('userEditId');
+
+  if (mode === 'add') {
+    title.textContent = 'Tambah User Baru';
+    editIdField.value = '';
+    document.getElementById('uFullname').value = '';
+    document.getElementById('uUsername').value = '';
+    document.getElementById('uPassword').value = '';
+  } else {
+    const u = users.find(x => x.id === id);
+    title.textContent = 'Edit User';
+    editIdField.value = u.id;
+    document.getElementById('uFullname').value = u.fullname;
+    document.getElementById('uUsername').value = u.username;
+    document.getElementById('uPassword').value = u.password;
+    document.getElementById('uRole').value = u.role;
+  }
+}
+
+function closeUserModal() { document.getElementById('userModalOverlay').classList.add('hidden'); }
+
+function saveUser() {
+  const id = document.getElementById('userEditId').value;
+  const data = {
+    fullname: document.getElementById('uFullname').value,
+    username: document.getElementById('uUsername').value,
+    password: document.getElementById('uPassword').value,
+    role: document.getElementById('uRole').value
+  };
+
+  if(!data.fullname || !data.username || !data.password) return showToast('Semua data user wajib diisi!', 'error');
+
+  if (id) {
+    const idx = users.findIndex(x => x.id == id);
+    users[idx] = { ...users[idx], ...data };
+  } else {
+    const newId = users.length > 0 ? Math.max(...users.map(x => x.id)) + 1 : 1;
+    users.push({ id: newId, ...data });
+  }
+
+  localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+  closeUserModal();
+  renderUserTable();
+  showToast('User berhasil disimpan');
+}
+
+function deleteUser(id) {
+  if (confirm('Hapus user ini?')) {
+    users = users.filter(x => x.id !== id);
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+    renderUserTable();
+  }
+}
+
+// ==========================================
+// 4. FITUR IMPOR EXCEL & AGREGASI
+// ==========================================
 function handleExcelImport(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -491,8 +632,8 @@ function handleExcelImport(event) {
 
       if (importCount > 0) {
         saveHistoryToStorage();
-        refreshAllViews(); // <--- KUNCI AGAR LANGSUNG KONEK KE SEMUA MENU
-        showToast(`Impor Berhasil: ${importCount} data masuk laporan!`);
+        refreshAllViews();
+        showToast(`Impor Berhasil: ${importCount} data masuk!`);
       } else { showToast('Gagal: Produk tidak cocok dengan Master Data.', 'error'); }
     } catch (err) { showToast('Kesalahan baca file.', 'error'); }
   };
@@ -500,117 +641,9 @@ function handleExcelImport(event) {
   event.target.value = ''; 
 }
 
-// ---------------------------------------------------------
-// FUNGSI EXPORT LAPORAN
-// ---------------------------------------------------------
-function initExport() {
-  const dateEl = document.getElementById('printDate');
-  if (dateEl) dateEl.textContent = new Date().toLocaleString('id-ID');
-  
-  const ranapBody = document.getElementById('printHistoryRanapBody');
-  const rajalBody = document.getElementById('printHistoryRajalBody');
-
-  if (!ranapBody || !rajalBody) return;
-
-  const ranapData = history.filter(h => h.tipe === 'ranap');
-  const rajalData = history.filter(h => h.tipe === 'rajal');
-
-  const renderRow = (h, i) => `
-    <tr>
-      <td>${i+1}</td>
-      <td>${h.nama_brand}</td>
-      <td>${h.staff}</td>
-      <td class="mono">${h.total_ddd.toFixed(4)}</td>
-      <td class="mono"><strong>${h.hasil_akhir.toFixed(3)}</strong></td>
-      <td><small>${formatDateShort(h.tanggal)}</small></td>
-    </tr>
-  `;
-
-  ranapBody.innerHTML = ranapData.length ? ranapData.map(renderRow).join('') : '<tr><td colspan="6" style="text-align:center">Data Kosong</td></tr>';
-  rajalBody.innerHTML = rajalData.length ? rajalData.map(renderRow).join('') : '<tr><td colspan="6" style="text-align:center">Data Kosong</td></tr>';
-}
-
-function exportToExcel() {
-  if (history.length === 0) return showToast('Tidak ada data untuk diekspor', 'error');
-  const data = history.map(h => ({
-    Tanggal: new Date(h.tanggal).toLocaleDateString(),
-    Tipe: h.tipe.toUpperCase(),
-    'Nama Brand': h.nama_brand,
-    Generik: h.nama_generik,
-    Staff: h.staff,
-    'Total Penggunaan (vial)': h.total_gram,
-    'Total DDD': h.total_ddd,
-    'Hasil Akhir': h.hasil_akhir
-  }));
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Laporan DDD");
-  XLSX.writeFile(wb, `Laporan_SmartDDD_${new Date().toISOString().slice(0,10)}.xlsx`);
-}
-
-function printReport() { window.print(); }
-
-// ---------------------------------------------------------
-// FUNGSI LAIN (LOGIN, DASHBOARD, DLL)
-// ---------------------------------------------------------
-function login() {
-  const u = document.getElementById('loginUsername').value;
-  const p = document.getElementById('loginPassword').value;
-  const user = users.find(x => x.username === u && x.password === p);
-  if (user) { currentUser = user; localStorage.setItem(STORAGE_KEYS.auth, JSON.stringify(user)); showApp(); } 
-  else { document.getElementById('loginError').classList.remove('hidden'); }
-}
-
-function logout() { localStorage.removeItem(STORAGE_KEYS.auth); location.reload(); }
-
-function showApp() {
-  document.getElementById('loginPage').classList.add('hidden');
-  document.getElementById('mainApp').classList.remove('hidden');
-  const avatar = currentUser.fullname[0].toUpperCase();
-  document.getElementById('sidebarAvatar').textContent = avatar;
-  document.getElementById('navAvatar').textContent = avatar;
-  document.getElementById('sidebarUserName').textContent = currentUser.fullname;
-  document.getElementById('navUserName').textContent = currentUser.fullname;
-  if (currentUser.role === 'admin') document.getElementById('adminMenu').classList.remove('hidden');
-  refreshAllViews();
-}
-
-function saveHistoryToStorage() { localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history)); }
-
-function toggleSidebar() {
-  const s = document.getElementById('sidebar');
-  if (window.innerWidth > 768) s.classList.toggle('collapsed');
-  else { s.classList.toggle('mobile-open'); document.getElementById('sidebarOverlay').classList.toggle('active'); }
-}
-
-function populateAntibioticSelect() {
-  const sel = document.getElementById('calcAntibiotic');
-  if (!sel) return;
-  const sorted = [...antibiotics].sort((a,b) => a.nama_brand.localeCompare(b.nama_brand));
-  sel.innerHTML = '<option value="">-- Pilih Brand/Produk --</option>' + sorted.map(a => `<option value="${a.id}">${a.nama_brand}</option>`).join('');
-}
-
-function onAntibioticSelect() {
-  const id = document.getElementById('calcAntibiotic').value;
-  if (!id) return;
-  const a = antibiotics.find(x => x.id == id);
-  document.getElementById('calcNamaGenerik').value = a.nama_generik;
-  document.getElementById('calcRute').value = a.rute;
-  document.getElementById('infoKodeAtc').textContent = a.kode_atc;
-  document.getElementById('infoDddWho').textContent = `${a.ddd_who} ${a.satuan}`;
-  document.getElementById('dddInfoRow').style.display = 'grid';
-}
-
-function switchCalcType(t) {
-  currentCalcType = t;
-  document.getElementById('btnTypeRanap').classList.toggle('active', t === 'ranap');
-  document.getElementById('btnTypeRajal').classList.toggle('active', t === 'rajal');
-  document.getElementById('fieldsRanap').classList.toggle('hidden', t === 'rajal');
-  document.getElementById('fieldsRajal').classList.toggle('hidden', t === 'ranap');
-  const staffSel = document.getElementById('calcStaff');
-  staffSel.innerHTML = STAFF_GROUPS[t].map(s => `<option value="${s}">${s}</option>`).join('');
-}
-
+// ==========================================
+// 5. KALKULATOR & FORMULA DDD (LOS / Kunjungan)
+// ==========================================
 function calculateDDD() {
   const id = document.getElementById('calcAntibiotic').value;
   const totalG = parseFloat(document.getElementById('calcTotalGram').value);
@@ -653,6 +686,9 @@ function calculateDDD() {
   showToast('Perhitungan disimpan');
 }
 
+// ==========================================
+// 6. DASHBOARD & STATISTIK & EXPORT
+// ==========================================
 function initDashboard() {
   const elAtb = document.getElementById('statTotalAntibiotik');
   const elCalc = document.getElementById('statTotalKalkulasi');
@@ -674,6 +710,94 @@ function initStatistik() {
   });
 }
 
+function initExport() {
+  const ranapBody = document.getElementById('printHistoryRanapBody');
+  const rajalBody = document.getElementById('printHistoryRajalBody');
+  if (!ranapBody || !rajalBody) return;
+
+  const renderRow = (h, i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td>${h.nama_brand}</td>
+      <td>${h.staff}</td>
+      <td class="mono">${h.total_ddd.toFixed(4)}</td>
+      <td class="mono"><strong>${h.hasil_akhir.toFixed(3)}</strong></td>
+      <td><small>${formatDateShort(h.tanggal)}</small></td>
+    </tr>
+  `;
+
+  ranapBody.innerHTML = history.filter(h=>h.tipe==='ranap').map(renderRow).join('') || '<tr><td colspan="6">Data Kosong</td></tr>';
+  rajalBody.innerHTML = history.filter(h=>h.tipe==='rajal').map(renderRow).join('') || '<tr><td colspan="6">Data Kosong</td></tr>';
+}
+
+function exportToExcel() {
+  const data = history.map(h => ({
+    Tanggal: formatDateShort(h.tanggal),
+    Tipe: h.tipe.toUpperCase(),
+    Brand: h.nama_brand,
+    Generik: h.nama_generik,
+    Total_vial: h.total_gram,
+    Total_DDD: h.total_ddd.toFixed(4),
+    Hasil_Akhir: h.hasil_akhir.toFixed(3)
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Laporan");
+  XLSX.writeFile(wb, "Laporan_SmartDDD.xlsx");
+}
+
+// ==========================================
+// 7. UTILS & UI
+// ==========================================
+function saveHistoryToStorage() { localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history)); }
+
+function toggleSidebar() {
+  const s = document.getElementById('sidebar');
+  if (window.innerWidth > 768) s.classList.toggle('collapsed');
+  else { s.classList.toggle('mobile-open'); document.getElementById('sidebarOverlay').classList.toggle('active'); }
+}
+
+function populateAntibioticSelect() {
+  const sel = document.getElementById('calcAntibiotic');
+  if (!sel) return;
+  const sorted = [...antibiotics].sort((a,b) => a.nama_brand.localeCompare(b.nama_brand));
+  sel.innerHTML = '<option value="">-- Pilih Brand/Produk --</option>' + sorted.map(a => `<option value="${a.id}">${a.nama_brand}</option>`).join('');
+}
+
+function onAntibioticSelect() {
+  const id = document.getElementById('calcAntibiotic').value;
+  if (!id) return;
+  const a = antibiotics.find(x => x.id == id);
+  document.getElementById('calcNamaGenerik').value = a.nama_generik;
+  document.getElementById('calcRute').value = a.rute;
+  document.getElementById('infoKodeAtc').textContent = a.kode_atc;
+  document.getElementById('infoDddWho').textContent = `${a.ddd_who} ${a.satuan}`;
+  document.getElementById('dddInfoRow').style.display = 'grid';
+}
+
+function switchCalcType(t) {
+  currentCalcType = t;
+  document.getElementById('btnTypeRanap').classList.toggle('active', t === 'ranap');
+  document.getElementById('btnTypeRajal').classList.toggle('active', t === 'rajal');
+  document.getElementById('fieldsRanap').classList.toggle('hidden', t === 'rajal');
+  document.getElementById('fieldsRajal').classList.toggle('hidden', t === 'ranap');
+  const staffSel = document.getElementById('calcStaff');
+  staffSel.innerHTML = STAFF_GROUPS[t].map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+function renderHistory() {
+  const tbody = document.getElementById('historyTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = [...history].reverse().slice(0, 10).map(h => `
+    <tr>
+      <td><small>${h.nama_brand}</small></td>
+      <td><small>${h.tipe}</small></td>
+      <td class="mono"><strong>${h.hasil_akhir.toFixed(3)}</strong></td>
+      <td><button class="btn-danger-sm" onclick="deleteHistory(${h.id})">×</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="4">Belum ada data</td></tr>';
+}
+
 function renderMasterTable() {
   const tbody = document.getElementById('masterTableBody');
   if(!tbody) return;
@@ -685,35 +809,25 @@ function renderMasterTable() {
       <td class="mono">${a.kode_atc}</td>
       <td>${a.rute}</td>
       <td>${a.ddd_who}</td>
-      <td><span class="badge badge-${a.aware.toLowerCase()}">${a.aware}</span></td>
+      <td><span class="badge badge-${a.aware.toLowerCase().replace(' ','-')}">${a.aware}</span></td>
       <td>...</td>
     </tr>
   `).join('');
 }
 
-function renderHistory() {
-  const tbody = document.getElementById('historyTableBody');
-  if (!tbody) return;
-  if (history.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Belum ada data</td></tr>'; }
-  else {
-    tbody.innerHTML = [...history].reverse().slice(0, 15).map(h => `
-      <tr>
-        <td><small>${h.nama_brand}</small></td>
-        <td><small>${h.tipe}</small></td>
-        <td class="mono"><strong>${h.hasil_akhir.toFixed(3)}</strong></td>
-        <td><button class="btn-danger-sm" onclick="deleteHistory(${h.id})">×</button></td>
-      </tr>
-    `).join('');
-  }
+function deleteHistory(id) {
+  history = history.filter(x => x.id !== id);
+  saveHistoryToStorage();
+  refreshAllViews();
 }
 
-function clearHistory() { if (confirm('Hapus semua?')) { history = []; saveHistoryToStorage(); refreshAllViews(); } }
+function clearHistory() { if (confirm('Hapus semua riwayat?')) { history = []; saveHistoryToStorage(); refreshAllViews(); } }
 
 function showToast(m, t = 'success') {
   const el = document.getElementById('toast');
   if(!el) return;
   el.textContent = m;
-  el.style.background = t === 'error' ? 'var(--danger)' : '#333';
+  el.style.background = t === 'error' ? '#DC2626' : '#1A2332';
   el.classList.remove('hidden');
   setTimeout(() => el.classList.add('hidden'), 3000);
 }
