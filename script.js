@@ -377,6 +377,7 @@ const INITIAL_ANTIBIOTICS = [
   { id:381, nama_brand:"OAT Anak-KDT Fase Lanjutan", nama_generik:"Rifampicin", kode_atc:"J04AB02", rute:"Oral", ddd_who:0.6, aware:"Anti-Tuberkulosis", satuan:"mg", quantity:75, gram:0.075 }
 ];
 
+
 // KONFIGURASI STORAGE
 const STORAGE_KEYS = {
   auth: 'smartddd_auth_session',
@@ -396,9 +397,10 @@ let users = [];
 let currentUser = null;
 let currentCalcType = 'ranap';
 let barChart = null, pieChart = null, dashPieChart = null;
+let editingId = null;
 
 // ==========================================
-// 1. FUNGSI INISIALISASI & AUTH
+// 1. INISIALISASI & AUTH
 // ==========================================
 function loadAllData() {
   const storedAtb = localStorage.getItem(STORAGE_KEYS.antibiotics);
@@ -426,7 +428,6 @@ function login() {
   const u = document.getElementById('loginUsername').value;
   const p = document.getElementById('loginPassword').value;
   const errorEl = document.getElementById('loginError');
-
   const user = users.find(x => x.username === u && x.password === p);
   if (user) {
     currentUser = user;
@@ -447,50 +448,59 @@ function logout() {
 function showApp() {
   document.getElementById('loginPage').classList.add('hidden');
   document.getElementById('mainApp').classList.remove('hidden');
-  
+
   const avatar = currentUser.fullname[0].toUpperCase();
   document.getElementById('sidebarAvatar').textContent = avatar;
   document.getElementById('navAvatar').textContent = avatar;
   document.getElementById('sidebarUserName').textContent = currentUser.fullname;
   document.getElementById('navUserName').textContent = currentUser.fullname;
 
-  // Sembunyikan/Tampilkan Menu Admin berdasarkan role
   const adminMenu = document.getElementById('adminMenu');
-  if (currentUser.role === 'admin') {
-    adminMenu.classList.remove('hidden');
-  } else {
-    adminMenu.classList.add('hidden');
-  }
+  if (currentUser.role === 'admin') adminMenu.classList.remove('hidden');
+  else adminMenu.classList.add('hidden');
 
+  startClock();
   refreshAllViews();
   navigate('dashboard');
 }
 
+function startClock() {
+  const el = document.getElementById('datetimeDisplay');
+  if (!el) return;
+  const tick = () => {
+    el.textContent = new Date().toLocaleString('id-ID', {
+      weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
 // ==========================================
-// 2. FUNGSI NAVIGASI & KONEKSI MENU
+// 2. NAVIGASI
 // ==========================================
 function navigate(sec) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active-section'));
   document.getElementById(sec + 'Section').classList.add('active-section');
-  document.getElementById('pageTitle').textContent = sec.toUpperCase();
+  document.getElementById('pageTitle').textContent =
+    { dashboard:'Dashboard', masterdata:'Master Data', kalkulator:'Kalkulator DDD',
+      statistik:'Statistik', export:'Export Laporan', usermanagement:'Kelola User' }[sec] || sec.toUpperCase();
 
-  // Sidebar active state
-  document.querySelectorAll('.nav-item').forEach(n => {
-    n.classList.toggle('active', n.dataset.section === sec);
-  });
+  document.querySelectorAll('.nav-item').forEach(n =>
+    n.classList.toggle('active', n.dataset.section === sec)
+  );
 
-  // Mobile menu close
   if (window.innerWidth <= 768) {
     document.getElementById('sidebar').classList.remove('mobile-open');
     document.getElementById('sidebarOverlay').classList.remove('active');
   }
 
-  // Panggil fungsi render spesifik tiap menu
-  if (sec === 'dashboard') initDashboard();
-  if (sec === 'masterdata') renderMasterTable();
-  if (sec === 'kalkulator') { populateAntibioticSelect(); renderHistory(); }
-  if (sec === 'statistik') initStatistik();
-  if (sec === 'export') initExport();
+  if (sec === 'dashboard')      initDashboard();
+  if (sec === 'masterdata')     { renderMasterTable(); }
+  if (sec === 'kalkulator')     { populateAntibioticSelect(); switchCalcType('ranap'); renderHistory(); }
+  if (sec === 'statistik')      initStatistik();
+  if (sec === 'export')         initExport();
   if (sec === 'usermanagement') renderUserTable();
 }
 
@@ -502,12 +512,189 @@ function refreshAllViews() {
 }
 
 // ==========================================
-// 3. MANAJEMEN USER (ADMIN ONLY)
+// 3. DASHBOARD
+// ==========================================
+function initDashboard() {
+  const elAtb  = document.getElementById('statTotalAntibiotik');
+  const elCalc = document.getElementById('statTotalKalkulasi');
+  const elMost = document.getElementById('statMostUsed');
+  const elAvg  = document.getElementById('statAvgDDD');
+  if (elAtb)  elAtb.textContent  = antibiotics.length;
+  if (elCalc) elCalc.textContent = history.length;
+
+  if (history.length > 0) {
+    const freq = {};
+    history.forEach(h => freq[h.nama_generik] = (freq[h.nama_generik] || 0) + 1);
+    const top = Object.entries(freq).sort((a,b) => b[1]-a[1])[0];
+    if (elMost) elMost.textContent = top ? top[0] : '–';
+    const avg = history.reduce((s,h) => s + h.total_ddd, 0) / history.length;
+    if (elAvg) elAvg.textContent = avg.toFixed(2);
+  }
+
+  // Recent table
+  const dashBody = document.getElementById('dashRecentBody');
+  if (dashBody) {
+    dashBody.innerHTML = [...history].reverse().slice(0,5).map(h => `
+      <tr>
+        <td>${h.nama_brand}</td>
+        <td>${h.tipe === 'ranap' ? 'Ranap' : 'Rajal'}</td>
+        <td class="mono"><strong>${h.hasil_akhir.toFixed(3)}</strong></td>
+        <td><small>${formatDateShort(h.tanggal)}</small></td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" class="empty-state">Belum ada perhitungan</td></tr>';
+  }
+
+  // AWARE pie chart
+  const awareCounts = {};
+  antibiotics.forEach(a => awareCounts[a.aware] = (awareCounts[a.aware] || 0) + 1);
+  const awareColors = {
+    'Access':'#22C55E','Watch':'#F59E0B','Reserve':'#EF4444',
+    'Anti-jamur':'#8B5CF6','Anti-Tuberkulosis':'#06B6D4','Anti-Virus':'#EC4899'
+  };
+  const ctxPie = document.getElementById('dashPieChart');
+  if (ctxPie) {
+    if (dashPieChart) dashPieChart.destroy();
+    dashPieChart = new Chart(ctxPie, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(awareCounts),
+        datasets: [{ data: Object.values(awareCounts),
+          backgroundColor: Object.keys(awareCounts).map(k => awareColors[k] || '#94A3B8') }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+  const legend = document.getElementById('awareLegend');
+  if (legend) {
+    legend.innerHTML = Object.entries(awareCounts).map(([k,v]) =>
+      `<span class="aware-dot" style="background:${awareColors[k]||'#94A3B8'}"></span>${k}: <b>${v}</b>`
+    ).join(' &nbsp; ');
+  }
+}
+
+// ==========================================
+// 4. MASTER DATA — RENDER, FILTER, CRUD
+// ==========================================
+function renderMasterTable(data) {
+  const tbody = document.getElementById('masterTableBody');
+  if (!tbody) return;
+  const list = data || antibiotics;
+  const countEl = document.getElementById('masterDataCount');
+  if (countEl) countEl.textContent = `${list.length} data`;
+
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Tidak ada data ditemukan</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map((a, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><strong>${a.nama_generik}</strong></td>
+      <td style="white-space:normal;word-break:break-word;">${a.nama_brand}</td>
+      <td class="mono">${a.kode_atc}</td>
+      <td>${a.rute}</td>
+      <td>${a.satuan}</td>
+      <td class="mono">${a.quantity != null ? a.quantity : '–'}</td>
+      <td class="mono">${a.gram != null ? a.gram : '–'}</td>
+      <td class="mono"><strong>${a.ddd_who}</strong></td>
+      <td><span class="badge badge-${(a.aware||'').toLowerCase().replace(/[ /-]/g,'-')}">${a.aware}</span></td>
+      <td>
+        <div style="display:flex;gap:4px;">
+          <button class="btn-icon btn-icon-edit" onclick="openModal('edit',${a.id})" title="Edit">✎</button>
+          <button class="btn-icon btn-icon-del" onclick="deleteAntibiotic(${a.id})" title="Hapus">×</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  // Pagination footer
+  const footer = document.getElementById('masterTableFooter');
+  if (footer) footer.innerHTML = `<span style="padding:10px 20px;display:block;color:var(--text-muted);font-size:13px;">Menampilkan ${list.length} dari ${antibiotics.length} data</span>`;
+}
+
+function filterMasterData() {
+  const q     = (document.getElementById('searchAntibiotic')?.value || '').toLowerCase();
+  const aware = (document.getElementById('filterAware')?.value || '');
+  let filtered = antibiotics;
+  if (q)     filtered = filtered.filter(a => a.nama_brand.toLowerCase().includes(q) || a.nama_generik.toLowerCase().includes(q));
+  if (aware) filtered = filtered.filter(a => a.aware === aware);
+  renderMasterTable(filtered);
+}
+
+function openModal(mode, id) {
+  document.getElementById('modalOverlay').classList.remove('hidden');
+  editingId = null;
+  if (mode === 'add') {
+    document.getElementById('modalTitle').textContent = 'Tambah Data Antibiotik';
+    document.getElementById('editId').value = '';
+    ['mNamaBrand','mNamaGenerik','mKodeAtc','mDddWho'].forEach(f => document.getElementById(f).value = '');
+    document.getElementById('mRute').value   = 'Oral';
+    document.getElementById('mSatuan').value = 'mg';
+    document.getElementById('mAware').value  = 'Access';
+  } else {
+    const a = antibiotics.find(x => x.id == id);
+    if (!a) return;
+    editingId = a.id;
+    document.getElementById('modalTitle').textContent = 'Edit Data Antibiotik';
+    document.getElementById('editId').value       = a.id;
+    document.getElementById('mNamaBrand').value   = a.nama_brand;
+    document.getElementById('mNamaGenerik').value = a.nama_generik;
+    document.getElementById('mKodeAtc').value     = a.kode_atc;
+    document.getElementById('mRute').value        = a.rute;
+    document.getElementById('mDddWho').value      = a.ddd_who;
+    document.getElementById('mSatuan').value      = a.satuan;
+    document.getElementById('mAware').value       = a.aware;
+  }
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
+
+function saveAntibiotic() {
+  const brand   = document.getElementById('mNamaBrand').value.trim();
+  const generik = document.getElementById('mNamaGenerik').value.trim();
+  const atc     = document.getElementById('mKodeAtc').value.trim();
+  const ddd     = parseFloat(document.getElementById('mDddWho').value);
+  if (!brand || !generik || !atc || isNaN(ddd)) {
+    return showToast('Lengkapi semua data yang wajib!', 'error');
+  }
+  const data = {
+    nama_brand: brand, nama_generik: generik, kode_atc: atc,
+    rute: document.getElementById('mRute').value,
+    ddd_who: ddd, satuan: document.getElementById('mSatuan').value,
+    aware: document.getElementById('mAware').value,
+    quantity: 0, gram: 0
+  };
+  if (editingId) {
+    const idx = antibiotics.findIndex(x => x.id === editingId);
+    antibiotics[idx] = { ...antibiotics[idx], ...data };
+    showToast('Data berhasil diperbarui');
+  } else {
+    const newId = antibiotics.length > 0 ? Math.max(...antibiotics.map(x => x.id)) + 1 : 1;
+    antibiotics.push({ id: newId, ...data });
+    showToast('Data berhasil ditambahkan');
+  }
+  localStorage.setItem(STORAGE_KEYS.antibiotics, JSON.stringify(antibiotics));
+  closeModal();
+  filterMasterData();
+  populateAntibioticSelect();
+}
+
+function deleteAntibiotic(id) {
+  if (!confirm('Hapus data antibiotik ini?')) return;
+  antibiotics = antibiotics.filter(x => x.id !== id);
+  localStorage.setItem(STORAGE_KEYS.antibiotics, JSON.stringify(antibiotics));
+  filterMasterData();
+  populateAntibioticSelect();
+  showToast('Data dihapus');
+}
+
+// ==========================================
+// 5. MANAJEMEN USER
 // ==========================================
 function renderUserTable() {
-  const tbody = document.querySelector('#usermanagementSection tbody');
+  const tbody = document.getElementById('userTableBody') || document.querySelector('#usermanagementSection tbody');
   if (!tbody) return;
-
   tbody.innerHTML = users.map(u => `
     <tr>
       <td><strong>${u.fullname}</strong></td>
@@ -515,7 +702,7 @@ function renderUserTable() {
       <td><span class="badge ${u.role === 'admin' ? 'badge-reserve' : 'badge-access'}">${u.role.toUpperCase()}</span></td>
       <td>
         <div style="display:flex;gap:4px">
-          <button class="btn-icon btn-icon-edit" onclick="openUserModal('edit', ${u.id})">✎</button>
+          <button class="btn-icon btn-icon-edit" onclick="openUserModal('edit',${u.id})">✎</button>
           ${u.username !== 'admin' ? `<button class="btn-icon btn-icon-del" onclick="deleteUser(${u.id})">×</button>` : ''}
         </div>
       </td>
@@ -525,39 +712,33 @@ function renderUserTable() {
 
 function openUserModal(mode, id) {
   document.getElementById('userModalOverlay').classList.remove('hidden');
-  const title = document.getElementById('userModalTitle');
-  const editIdField = document.getElementById('userEditId');
-
   if (mode === 'add') {
-    title.textContent = 'Tambah User Baru';
-    editIdField.value = '';
-    document.getElementById('uFullname').value = '';
-    document.getElementById('uUsername').value = '';
-    document.getElementById('uPassword').value = '';
+    document.getElementById('userModalTitle').textContent = 'Tambah User Baru';
+    document.getElementById('userEditId').value = '';
+    ['uFullname','uUsername','uPassword'].forEach(f => document.getElementById(f).value = '');
+    document.getElementById('uRole').value = 'user';
   } else {
     const u = users.find(x => x.id === id);
-    title.textContent = 'Edit User';
-    editIdField.value = u.id;
-    document.getElementById('uFullname').value = u.fullname;
-    document.getElementById('uUsername').value = u.username;
-    document.getElementById('uPassword').value = u.password;
-    document.getElementById('uRole').value = u.role;
+    document.getElementById('userModalTitle').textContent = 'Edit User';
+    document.getElementById('userEditId').value   = u.id;
+    document.getElementById('uFullname').value    = u.fullname;
+    document.getElementById('uUsername').value    = u.username;
+    document.getElementById('uPassword').value    = u.password;
+    document.getElementById('uRole').value        = u.role;
   }
 }
 
 function closeUserModal() { document.getElementById('userModalOverlay').classList.add('hidden'); }
 
 function saveUser() {
-  const id = document.getElementById('userEditId').value;
+  const id   = document.getElementById('userEditId').value;
   const data = {
     fullname: document.getElementById('uFullname').value,
     username: document.getElementById('uUsername').value,
     password: document.getElementById('uPassword').value,
-    role: document.getElementById('uRole').value
+    role:     document.getElementById('uRole').value
   };
-
-  if(!data.fullname || !data.username || !data.password) return showToast('Semua data user wajib diisi!', 'error');
-
+  if (!data.fullname || !data.username || !data.password) return showToast('Semua data user wajib diisi!','error');
   if (id) {
     const idx = users.findIndex(x => x.id == id);
     users[idx] = { ...users[idx], ...data };
@@ -565,7 +746,6 @@ function saveUser() {
     const newId = users.length > 0 ? Math.max(...users.map(x => x.id)) + 1 : 1;
     users.push({ id: newId, ...data });
   }
-
   localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
   closeUserModal();
   renderUserTable();
@@ -581,7 +761,7 @@ function deleteUser(id) {
 }
 
 // ==========================================
-// 4. FITUR IMPOR EXCEL & AGREGASI (OTOMATIS LOS)
+// 6. IMPOR EXCEL — OTOMASI LOS
 // ==========================================
 function handleExcelImport(event) {
   const file = event.target.files[0];
@@ -590,132 +770,83 @@ function handleExcelImport(event) {
 
   reader.onload = (e) => {
     try {
-      const data = new Uint8Array(e.target.result);
+      const data     = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet);
-
+      const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+      const rows     = XLSX.utils.sheet_to_json(sheet);
       if (rows.length === 0) return showToast('File Excel kosong!', 'error');
 
-      // --- OTOMASI LOS: Cari nilai LOS dari kolom excel pasien ---
-      // Cari kolom LOS dengan berbagai kemungkinan nama kolom
-      const LOS_COLUMN_NAMES = [
-        'LOS', 'los', 'Lama Rawat', 'lama_rawat', 'LamaRawat', 'LAMA RAWAT',
-        'Patient Days', 'patient_days', 'PatientDays', 'PATIENT DAYS',
-        'Hari Rawat', 'hari_rawat', 'HariRawat', 'HARI RAWAT',
-        'Length of Stay', 'length_of_stay', 'LengthOfStay'
-      ];
-
+      // --- DETEKSI LOS OTOMATIS ---
       let autoLOS = null;
+      const LOS_KEYS = ['LOS','los','Lama Rawat','lama_rawat','LamaRawat','LAMA RAWAT',
+        'Patient Days','patient_days','PatientDays','PATIENT DAYS',
+        'Hari Rawat','hari_rawat','HariRawat','HARI RAWAT',
+        'Length of Stay','length_of_stay','LengthOfStay'];
 
-      // Strategi 1: Cari nilai LOS dari kolom khusus di baris data pasien
       if (rows.length > 0) {
-        const firstRow = rows[0];
-        const foundLosKey = LOS_COLUMN_NAMES.find(key => firstRow.hasOwnProperty(key));
-        if (foundLosKey) {
-          // Ambil nilai LOS dari semua baris, ambil nilai terbesar (atau yang non-nol pertama)
-          const losValues = rows
-            .map(r => parseFloat(r[foundLosKey]))
-            .filter(v => !isNaN(v) && v > 0);
-          if (losValues.length > 0) {
-            // Gunakan nilai LOS terbesar (akumulasi patient-days)
-            autoLOS = Math.max(...losValues);
-          }
+        const firstRow   = rows[0];
+        const foundKey   = LOS_KEYS.find(k => firstRow.hasOwnProperty(k));
+        if (foundKey) {
+          const vals = rows.map(r => parseFloat(r[foundKey])).filter(v => !isNaN(v) && v > 0);
+          if (vals.length) autoLOS = Math.max(...vals);
         }
       }
-
-      // Strategi 2: Cari kolom LOS di semua kemungkinan nama kolom (case-insensitive)
       if (autoLOS === null && rows.length > 0) {
-        const firstRow = rows[0];
-        const allKeys = Object.keys(firstRow);
-        const losKey = allKeys.find(k => 
-          k.toLowerCase().includes('los') || 
-          k.toLowerCase().includes('lama rawat') || 
-          k.toLowerCase().includes('patient day') || 
-          k.toLowerCase().includes('hari rawat') ||
+        const allKeys = Object.keys(rows[0]);
+        const k = allKeys.find(k =>
+          k.toLowerCase().includes('los') || k.toLowerCase().includes('lama rawat') ||
+          k.toLowerCase().includes('patient day') || k.toLowerCase().includes('hari rawat') ||
           k.toLowerCase().includes('length of stay')
         );
-        if (losKey) {
-          const losValues = rows
-            .map(r => parseFloat(r[losKey]))
-            .filter(v => !isNaN(v) && v > 0);
-          if (losValues.length > 0) {
-            autoLOS = Math.max(...losValues);
-          }
+        if (k) {
+          const vals = rows.map(r => parseFloat(r[k])).filter(v => !isNaN(v) && v > 0);
+          if (vals.length) autoLOS = Math.max(...vals);
         }
       }
-
-      // Strategi 3: Cari dari kolom khusus "Total LOS" atau "Total Patient Days" (nilai tunggal di baris header/summary)
       if (autoLOS === null) {
-        const allKeys = rows.length > 0 ? Object.keys(rows[0]) : [];
-        for (const key of allKeys) {
-          if (key.toLowerCase().includes('total') && 
-              (key.toLowerCase().includes('los') || key.toLowerCase().includes('patient') || key.toLowerCase().includes('hari'))) {
-            const val = parseFloat(rows[0][key]);
-            if (!isNaN(val) && val > 0) { autoLOS = val; break; }
-          }
-        }
+        const patCols = ['MRN','mrn','No RM','no_rm','NoRM','NO RM','Pasien','Patient','patient_id'];
+        const pk = patCols.find(k => rows[0] && rows[0].hasOwnProperty(k));
+        if (pk) autoLOS = new Set(rows.map(r => r[pk])).size;
       }
 
-      // Strategi 4: Hitung LOS otomatis dari jumlah baris unik pasien (fallback)
-      // Coba cari kolom MRN / No. RM / Pasien untuk hitung pasien unik
-      if (autoLOS === null) {
-        const patientColNames = ['MRN', 'mrn', 'No RM', 'no_rm', 'NoRM', 'NO RM', 'Pasien', 'Patient', 'patient_id', 'PatientID'];
-        const patientKey = patientColNames.find(k => rows[0] && rows[0].hasOwnProperty(k));
-        if (patientKey) {
-          const uniquePatients = new Set(rows.map(r => r[patientKey]));
-          autoLOS = uniquePatients.size;
-        }
-      }
-
-      // Jika LOS masih tidak ditemukan, minta input manual (fallback akhir)
       let factor;
       if (currentCalcType === 'ranap') {
         if (autoLOS !== null) {
           factor = autoLOS;
-          showToast(`LOS otomatis terdeteksi: ${factor} hari`);
+          showToast(`LOS terdeteksi otomatis: ${factor} hari`);
         } else {
-          const factorInput = prompt("LOS tidak terdeteksi otomatis. Masukkan Total LOS (Patient Days):", "1");
-          factor = parseInt(factorInput);
-          if (isNaN(factor) || factor <= 0) return showToast('Batal: Angka tidak valid.', 'error');
+          const inp = prompt('LOS tidak terdeteksi. Masukkan Total LOS (Patient Days):', '1');
+          factor = parseInt(inp);
+          if (isNaN(factor) || factor <= 0) return showToast('Batal.', 'error');
         }
       } else {
-        const factorInput = prompt("Masukkan Total Kunjungan:", "1");
-        factor = parseInt(factorInput);
-        if (isNaN(factor) || factor <= 0) return showToast('Batal: Angka tidak valid.', 'error');
+        const inp = prompt('Masukkan Total Kunjungan:', '1');
+        factor = parseInt(inp);
+        if (isNaN(factor) || factor <= 0) return showToast('Batal.', 'error');
       }
 
-      // Agregasi data obat dari baris excel
-      const aggregatedData = {};
+      // Agregasi
+      const agg = {};
       rows.forEach(row => {
-        const brandName = (row.ItemDesc || row.Brand || row.Antibiotik || row.NamaSediaan || row['Nama Sediaan'] || "").toString().trim();
-        const qty = parseFloat(row.QtyBilling || row.Penggunaan || row.Qty || row.Jumlah || 0);
-        if (brandName && qty > 0) { aggregatedData[brandName] = (aggregatedData[brandName] || 0) + qty; }
+        const brand = (row.ItemDesc || row.Brand || row.Antibiotik || row.NamaSediaan || row['Nama Sediaan'] || '').toString().trim();
+        const qty   = parseFloat(row.QtyBilling || row.Penggunaan || row.Qty || row.Jumlah || 0);
+        if (brand && qty > 0) agg[brand] = (agg[brand] || 0) + qty;
       });
 
       let importCount = 0;
-      Object.keys(aggregatedData).forEach(brandName => {
-        const atb = antibiotics.find(a => a.nama_brand.toLowerCase() === brandName.toLowerCase());
+      Object.keys(agg).forEach(brand => {
+        const atb = antibiotics.find(a => a.nama_brand.toLowerCase() === brand.toLowerCase());
         if (atb) {
-          const usage = aggregatedData[brandName];
-          // Hitung total gram dari quantity dan gram per unit
+          const usage    = agg[brand];
           const totalGram = usage * (atb.gram || (atb.quantity / 1000) || 1);
-          const totalDDD = totalGram / atb.ddd_who;
-          // Rumus DDD per 100 patient-days: (Total Gram / DDD WHO) * 100 / Total LOS
-          const hasil = (currentCalcType === 'ranap')
-            ? (totalDDD / factor) * 100
-            : (totalDDD / factor) * 1000;
-
+          const totalDDD  = totalGram / atb.ddd_who;
+          const hasil     = currentCalcType === 'ranap' ? (totalDDD / factor) * 100 : (totalDDD / factor) * 1000;
           history.push({
             id: Date.now() + Math.random(),
-            nama_brand: atb.nama_brand,
-            nama_generik: atb.nama_generik,
-            tipe: currentCalcType,
-            staff: "Imported Excel",
-            total_gram: totalGram,
-            total_ddd: totalDDD,
-            hasil_akhir: hasil,
-            los: factor,
+            nama_brand: atb.nama_brand, nama_generik: atb.nama_generik,
+            tipe: currentCalcType, staff: 'Imported Excel',
+            total_gram: totalGram, total_ddd: totalDDD,
+            hasil_akhir: hasil, los: factor,
             tanggal: new Date().toISOString()
           });
           importCount++;
@@ -725,146 +856,198 @@ function handleExcelImport(event) {
       if (importCount > 0) {
         saveHistoryToStorage();
         refreshAllViews();
-        showToast(`Impor Berhasil: ${importCount} data masuk! (LOS: ${factor})`);
-      } else { showToast('Gagal: Produk tidak cocok dengan Master Data.', 'error'); }
-    } catch (err) { showToast('Kesalahan baca file: ' + err.message, 'error'); }
+        showToast(`Impor berhasil: ${importCount} data (LOS: ${factor})`);
+      } else {
+        showToast('Gagal: Tidak ada produk yang cocok dengan Master Data.', 'error');
+      }
+    } catch (err) { showToast('Kesalahan membaca file: ' + err.message, 'error'); }
   };
   reader.readAsArrayBuffer(file);
-  event.target.value = ''; 
+  event.target.value = '';
 }
 
 // ==========================================
-// 5. KALKULATOR & FORMULA DDD (LOS / Kunjungan)
+// 7. KALKULATOR DDD
 // ==========================================
 function calculateDDD() {
-  const id = document.getElementById('calcAntibiotic').value;
+  const id    = document.getElementById('calcAntibiotic').value;
   const totalG = parseFloat(document.getElementById('calcTotalGram').value);
-  if (!id || isNaN(totalG)) return showToast('Lengkapi data!', 'error');
+  if (!id || isNaN(totalG) || totalG <= 0) return showToast('Lengkapi data dengan benar!', 'error');
 
   const a = antibiotics.find(x => x.id == id);
-  const totalDDD = totalG / a.ddd_who;
-  let finalResult = 0;
-  let formulaStr = "";
+  if (!a) return showToast('Antibiotik tidak ditemukan!', 'error');
 
+  // Konversi vial -> gram menggunakan faktor gram per unit
+  const gramPerUnit = a.gram || (a.quantity ? a.quantity / 1000 : 1);
+  const totalGram   = totalG * gramPerUnit;
+  const totalDDD    = totalGram / a.ddd_who;
+
+  let finalResult = 0, formulaStr = '';
   if (currentCalcType === 'ranap') {
     const hari = parseInt(document.getElementById('calcLamaRawat').value);
-    if (isNaN(hari)) return showToast('Isi Lama Rawat!', 'error');
+    if (isNaN(hari) || hari <= 0) return showToast('Isi Lama Rawat yang valid!', 'error');
     finalResult = (totalDDD / hari) * 100;
-    formulaStr = `(${totalDDD.toFixed(4)} / ${hari}) x 100 = ${finalResult.toFixed(3)}`;
+    formulaStr  = `(${totalGram.toFixed(2)}g / ${a.ddd_who} DDD) / ${hari} LOS × 100 = ${finalResult.toFixed(3)}`;
   } else {
     const kunj = parseInt(document.getElementById('calcTotalKunjungan').value);
-    if (isNaN(kunj)) return showToast('Isi Total Kunjungan!', 'error');
+    if (isNaN(kunj) || kunj <= 0) return showToast('Isi Total Kunjungan yang valid!', 'error');
     finalResult = (totalDDD / kunj) * 1000;
-    formulaStr = `(${totalDDD.toFixed(4)} / ${kunj}) x 1000 = ${finalResult.toFixed(3)}`;
+    formulaStr  = `(${totalGram.toFixed(2)}g / ${a.ddd_who} DDD) / ${kunj} Kunjungan × 1000 = ${finalResult.toFixed(3)}`;
   }
 
   history.push({
     id: Date.now(), nama_brand: a.nama_brand, nama_generik: a.nama_generik,
     tipe: currentCalcType, staff: document.getElementById('calcStaff').value,
-    total_gram: totalG, total_ddd: totalDDD, hasil_akhir: finalResult,
+    total_gram: totalGram, total_ddd: totalDDD, hasil_akhir: finalResult,
     tanggal: new Date().toISOString()
   });
 
   saveHistoryToStorage();
   refreshAllViews();
-  
+
   document.getElementById('calcResultCard').classList.remove('hidden');
   document.getElementById('resultAntibiotic').textContent = a.nama_brand;
-  document.getElementById('resultTotalDDD').textContent = totalDDD.toFixed(4);
-  document.getElementById('resultLabelKey').textContent = currentCalcType === 'ranap' ? 'DDD / 100 LOS' : 'DDD / 1000 Kunjungan';
-  document.getElementById('resultValueKey').textContent = finalResult.toFixed(3);
-  document.getElementById('resultFormula').textContent = formulaStr;
-  
-  showToast('Perhitungan disimpan');
+  document.getElementById('resultTotalDDD').textContent   = totalDDD.toFixed(4);
+  document.getElementById('resultLabelKey').textContent   = currentCalcType === 'ranap' ? 'DDD / 100 LOS' : 'DDD / 1000 Kunjungan';
+  document.getElementById('resultValueKey').textContent   = finalResult.toFixed(3);
+  document.getElementById('resultFormula').textContent    = formulaStr;
+
+  showToast('Perhitungan berhasil disimpan');
 }
 
 // ==========================================
-// 6. DASHBOARD & STATISTIK & EXPORT
+// 8. STATISTIK
 // ==========================================
-function initDashboard() {
-  const elAtb = document.getElementById('statTotalAntibiotik');
-  const elCalc = document.getElementById('statTotalKalkulasi');
-  if (elAtb) elAtb.textContent = antibiotics.length;
-  if (elCalc) elCalc.textContent = history.length;
-}
-
 function initStatistik() {
   const ctxBar = document.getElementById('barChart');
-  if (!ctxBar || history.length === 0) return;
-  const dataMap = {};
-  history.forEach(h => { dataMap[h.nama_generik] = (dataMap[h.nama_generik] || 0) + h.total_ddd; });
-  const sorted = Object.entries(dataMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
-  if (barChart) barChart.destroy();
-  barChart = new Chart(ctxBar, {
-    type: 'bar',
-    data: { labels: sorted.map(x => x[0]), datasets: [{ label: 'Total DDD', data: sorted.map(x => x[1]), backgroundColor: '#1565C0' }] },
-    options: { responsive: true, maintainAspectRatio: false }
-  });
+  const ctxPie = document.getElementById('pieChart');
+
+  if (ctxBar) {
+    if (barChart) barChart.destroy();
+    if (history.length === 0) {
+      ctxBar.getContext('2d') && (ctxBar.style.display = 'none');
+    } else {
+      ctxBar.style.display = '';
+      const dataMap = {};
+      history.forEach(h => dataMap[h.nama_generik] = (dataMap[h.nama_generik] || 0) + h.total_ddd);
+      const sorted = Object.entries(dataMap).sort((a,b) => b[1]-a[1]).slice(0,10);
+      barChart = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+          labels: sorted.map(x => x[0]),
+          datasets: [{ label: 'Total DDD', data: sorted.map(x => parseFloat(x[1].toFixed(4))),
+            backgroundColor: '#1565C0', borderRadius: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+  }
+
+  if (ctxPie && history.length > 0) {
+    if (pieChart) pieChart.destroy();
+    const awareMap = {};
+    history.forEach(h => {
+      const atb = antibiotics.find(a => a.nama_brand === h.nama_brand);
+      const aw  = atb ? atb.aware : 'Unknown';
+      awareMap[aw] = (awareMap[aw] || 0) + 1;
+    });
+    const colors = { 'Access':'#22C55E','Watch':'#F59E0B','Reserve':'#EF4444',
+      'Anti-jamur':'#8B5CF6','Anti-Tuberkulosis':'#06B6D4','Anti-Virus':'#EC4899','Unknown':'#94A3B8' };
+    pieChart = new Chart(ctxPie, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(awareMap),
+        datasets: [{ data: Object.values(awareMap),
+          backgroundColor: Object.keys(awareMap).map(k => colors[k] || '#94A3B8') }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
 }
 
+// ==========================================
+// 9. EXPORT
+// ==========================================
 function initExport() {
   const ranapBody = document.getElementById('printHistoryRanapBody');
   const rajalBody = document.getElementById('printHistoryRajalBody');
-  if (!ranapBody || !rajalBody) return;
+  const printDate = document.getElementById('printDate');
+  if (printDate) printDate.textContent = new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' });
 
   const renderRow = (h, i) => `
     <tr>
-      <td>${i+1}</td>
+      <td>${i + 1}</td>
       <td>${h.nama_brand}</td>
-      <td>${h.staff}</td>
+      <td>${h.staff || '–'}</td>
       <td class="mono">${h.total_ddd.toFixed(4)}</td>
       <td class="mono"><strong>${h.hasil_akhir.toFixed(3)}</strong></td>
       <td><small>${formatDateShort(h.tanggal)}</small></td>
-    </tr>
-  `;
+    </tr>`;
 
-  ranapBody.innerHTML = history.filter(h=>h.tipe==='ranap').map(renderRow).join('') || '<tr><td colspan="6">Data Kosong</td></tr>';
-  rajalBody.innerHTML = history.filter(h=>h.tipe==='rajal').map(renderRow).join('') || '<tr><td colspan="6">Data Kosong</td></tr>';
+  if (ranapBody) ranapBody.innerHTML = history.filter(h => h.tipe === 'ranap').map(renderRow).join('') || '<tr><td colspan="6" style="text-align:center;color:#999">Data Kosong</td></tr>';
+  if (rajalBody) rajalBody.innerHTML = history.filter(h => h.tipe === 'rajal').map(renderRow).join('') || '<tr><td colspan="6" style="text-align:center;color:#999">Data Kosong</td></tr>';
+}
+
+function printReport() {
+  initExport();
+  setTimeout(() => window.print(), 300);
 }
 
 function exportToExcel() {
+  if (history.length === 0) return showToast('Tidak ada data untuk diekspor!', 'error');
   const data = history.map(h => ({
     Tanggal: formatDateShort(h.tanggal),
     Tipe: h.tipe.toUpperCase(),
     Brand: h.nama_brand,
     Generik: h.nama_generik,
-    Total_vial: h.total_gram,
-    Total_DDD: h.total_ddd.toFixed(4),
-    Hasil_Akhir: h.hasil_akhir.toFixed(3)
+    Staff: h.staff || '–',
+    Total_Gram: h.total_gram,
+    Total_DDD: parseFloat(h.total_ddd.toFixed(4)),
+    Hasil_Akhir: parseFloat(h.hasil_akhir.toFixed(3))
   }));
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Laporan");
-  XLSX.writeFile(wb, "Laporan_SmartDDD.xlsx");
+  XLSX.utils.book_append_sheet(wb, ws, 'Laporan DDD');
+  XLSX.writeFile(wb, `Laporan_SmartDDD_${new Date().toLocaleDateString('id-ID').replace(/\//g,'-')}.xlsx`);
 }
 
 // ==========================================
-// 7. UTILS & UI
+// 10. UI UTILS
 // ==========================================
 function saveHistoryToStorage() { localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history)); }
 
 function toggleSidebar() {
   const s = document.getElementById('sidebar');
   if (window.innerWidth > 768) s.classList.toggle('collapsed');
-  else { s.classList.toggle('mobile-open'); document.getElementById('sidebarOverlay').classList.toggle('active'); }
+  else {
+    s.classList.toggle('mobile-open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+  }
 }
 
 function populateAntibioticSelect() {
   const sel = document.getElementById('calcAntibiotic');
   if (!sel) return;
-  const sorted = [...antibiotics].sort((a,b) => a.nama_brand.localeCompare(b.nama_brand));
-  sel.innerHTML = '<option value="">-- Pilih Brand/Produk --</option>' + sorted.map(a => `<option value="${a.id}">${a.nama_brand}</option>`).join('');
+  const sorted = [...antibiotics].sort((a, b) => a.nama_brand.localeCompare(b.nama_brand));
+  sel.innerHTML = '<option value="">-- Pilih Brand/Produk --</option>' +
+    sorted.map(a => `<option value="${a.id}">${a.nama_brand}</option>`).join('');
 }
 
 function onAntibioticSelect() {
   const id = document.getElementById('calcAntibiotic').value;
   if (!id) return;
   const a = antibiotics.find(x => x.id == id);
+  if (!a) return;
   document.getElementById('calcNamaGenerik').value = a.nama_generik;
-  document.getElementById('calcRute').value = a.rute;
+  document.getElementById('calcRute').value        = a.rute;
   document.getElementById('infoKodeAtc').textContent = a.kode_atc;
-  document.getElementById('infoDddWho').textContent = `${a.ddd_who} ${a.satuan}`;
+  document.getElementById('infoDddWho').textContent  = `${a.ddd_who} ${a.satuan}`;
   document.getElementById('dddInfoRow').style.display = 'grid';
+  const hint = document.getElementById('satHint');
+  if (hint) hint.textContent = `(${a.quantity || '–'} ${a.satuan} per unit)`;
 }
 
 function switchCalcType(t) {
@@ -874,7 +1057,7 @@ function switchCalcType(t) {
   document.getElementById('fieldsRanap').classList.toggle('hidden', t === 'rajal');
   document.getElementById('fieldsRajal').classList.toggle('hidden', t === 'ranap');
   const staffSel = document.getElementById('calcStaff');
-  staffSel.innerHTML = STAFF_GROUPS[t].map(s => `<option value="${s}">${s}</option>`).join('');
+  if (staffSel) staffSel.innerHTML = STAFF_GROUPS[t].map(s => `<option value="${s}">${s}</option>`).join('');
 }
 
 function renderHistory() {
@@ -887,24 +1070,7 @@ function renderHistory() {
       <td class="mono"><strong>${h.hasil_akhir.toFixed(3)}</strong></td>
       <td><button class="btn-danger-sm" onclick="deleteHistory(${h.id})">×</button></td>
     </tr>
-  `).join('') || '<tr><td colspan="4">Belum ada data</td></tr>';
-}
-
-function renderMasterTable() {
-  const tbody = document.getElementById('masterTableBody');
-  if(!tbody) return;
-  tbody.innerHTML = antibiotics.slice(0, 50).map((a, i) => `
-    <tr>
-      <td>${i+1}</td>
-      <td><strong>${a.nama_generik}</strong></td>
-      <td style="white-space:normal;word-break:break-word;">${a.nama_brand}</td>
-      <td class="mono">${a.kode_atc}</td>
-      <td>${a.rute}</td>
-      <td>${a.ddd_who}</td>
-      <td><span class="badge badge-${(a.aware || '').toLowerCase().replace(/ /g,'-')}">${a.aware}</span></td>
-      <td>${a.satuan}</td>
-    </tr>
-  `).join('');
+  `).join('') || '<tr><td colspan="4" class="empty-state">Belum ada data</td></tr>';
 }
 
 function deleteHistory(id) {
@@ -913,21 +1079,32 @@ function deleteHistory(id) {
   refreshAllViews();
 }
 
-function clearHistory() { if (confirm('Hapus semua riwayat?')) { history = []; saveHistoryToStorage(); refreshAllViews(); } }
+function clearHistory() {
+  if (confirm('Hapus semua riwayat perhitungan?')) {
+    history = [];
+    saveHistoryToStorage();
+    refreshAllViews();
+    showToast('Riwayat dihapus');
+  }
+}
 
 function showToast(m, t = 'success') {
   const el = document.getElementById('toast');
-  if(!el) return;
+  if (!el) return;
   el.textContent = m;
   el.style.background = t === 'error' ? '#DC2626' : '#1A2332';
   el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 3000);
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.add('hidden'), 3500);
 }
 
-function formatDateShort(iso) { return new Date(iso).toLocaleDateString('id-ID'); }
+function formatDateShort(iso) {
+  return new Date(iso).toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
+}
+
 function togglePasswordVisibility() {
   const p = document.getElementById('loginPassword');
-  p.type = p.type === 'password' ? 'text' : 'password';
+  p.type  = p.type === 'password' ? 'text' : 'password';
 }
 
 window.addEventListener('DOMContentLoaded', loadAllData);
